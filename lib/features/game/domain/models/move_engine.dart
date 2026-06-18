@@ -24,14 +24,19 @@ class MoveEngine {
         if (a.id != piece.id) a.position,
     };
 
+    // L-shaped arrows move in their turnDirection (the tip direction)
+    final moveDir =
+        piece.shape == ArrowShape.lShape && piece.turnDirection != null
+        ? piece.turnDirection!
+        : piece.direction;
+
     final path = <Position>[];
     var current = piece.position;
-
     final maxSteps = level.boardCells.length + 4;
     var steps = 0;
 
     while (steps < maxSteps) {
-      current = current.move(piece.direction);
+      current = current.move(moveDir);
       steps++;
 
       if (!level.boardCells.contains(current)) {

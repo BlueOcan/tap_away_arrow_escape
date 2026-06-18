@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/models/arrow_piece.dart';
+import '../../domain/models/direction.dart';
 import '../../domain/models/level_model.dart';
+import '../../domain/models/position.dart';
 import 'arrow_tile.dart';
 
-class BoardWidget extends StatelessWidget {
+class BoardWidget extends StatefulWidget {
   final LevelModel level;
   final List<ArrowPiece> arrows;
   final String? animatingEscapeId;
@@ -26,48 +28,112 @@ class BoardWidget extends StatelessWidget {
   });
 
   @override
+  State<BoardWidget> createState() => _BoardWidgetState();
+}
+
+class _BoardWidgetState extends State<BoardWidget> {
+  final TransformationController _transformController =
+      TransformationController();
+
+  @override
+  void dispose() {
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  /// Returns every grid cell that is covered by an arrow body or head.
+  Set<Position> _computeHiddenDots() {
+    final hidden = <Position>{};
+
+    for (final piece in widget.arrows) {
+      hidden.add(piece.position);
+
+      if (piece.shape == ArrowShape.lShape && piece.turnDirection != null) {
+        final (dr1, dc1) = piece.direction.delta;
+        final pivot = Position(
+          piece.position.row + dr1,
+          piece.position.col + dc1,
+        );
+        hidden.add(pivot);
+
+        final (dr2, dc2) = piece.turnDirection!.delta;
+        hidden.add(Position(pivot.row + dr2, pivot.col + dc2));
+      } else {
+        final (dr, dc) = piece.direction.delta;
+        for (var i = 1; i <= piece.length; i++) {
+          hidden.add(
+            Position(piece.position.row + dr * i, piece.position.col + dc * i),
+          );
+        }
+      }
+    }
+
+    return hidden;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cellSize = widget.level.cellSize;
+    final gap = cellSize * 0.15;
+    final step = cellSize + gap;
+
+    int maxRow = 0, maxCol = 0;
+    for (final pos in widget.level.boardCells) {
+      if (pos.row > maxRow) maxRow = pos.row;
+      if (pos.col > maxCol) maxCol = pos.col;
+    }
+
+    final canvasW = (maxCol + 1) * step + cellSize * 4;
+    final canvasH = (maxRow + 1) * step + cellSize * 4;
+
+    const boardPadding = 2.0;
+    final boardOffsetX = boardPadding * step;
+    final boardOffsetY = boardPadding * step;
+
+    final hiddenDots = _computeHiddenDots();
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final boardSize = constraints.maxWidth < constraints.maxHeight
-            ? constraints.maxWidth
-            : constraints.maxHeight;
-        final gap = boardSize * 0.015;
-        final cellSize =
-            (boardSize - gap * (level.gridSize - 1)) / level.gridSize;
-        final step = cellSize + gap;
+        return InteractiveViewer(
+          transformationController: _transformController,
+          boundaryMargin: const EdgeInsets.all(double.infinity),
+          minScale: 0.2,
+          maxScale: 4.0,
+          constrained: false,
+          child: SizedBox(
+            width: canvasW + boardOffsetX * 2,
+            height: canvasH + boardOffsetY * 2,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Dots — only for cells NOT covered by any arrow
+                for (final pos in widget.level.boardCells)
+                  if (!hiddenDots.contains(pos))
+                    Positioned(
+                      left: boardOffsetX + pos.col * step,
+                      top: boardOffsetY + pos.row * step,
+                      child: _GridDot(cellSize: cellSize),
+                    ),
 
-        final occupiedPositions = {for (final a in arrows) a.position: a};
-
-        return SizedBox(
-          width: boardSize,
-          height: boardSize,
-          child: Stack(
-            children: [
-              for (final pos in level.boardCells)
-                if (!occupiedPositions.containsKey(pos))
+                // Arrows
+                for (final piece in widget.arrows)
                   Positioned(
-                    left: pos.col * step,
-                    top: pos.row * step,
-                    child: _EmptyDot(cellSize: cellSize),
+                    left: boardOffsetX + piece.position.col * step,
+                    top: boardOffsetY + piece.position.row * step,
+                    child: ArrowTile(
+                      key: ValueKey(piece.id),
+                      piece: piece,
+                      cellSize: cellSize,
+                      step: step,
+                      triggerEscape: widget.animatingEscapeId == piece.id,
+                      triggerBlocked: widget.animatingBlockedId == piece.id,
+                      onTap: () => widget.onTapArrow(piece.id),
+                      onEscapeAnimationDone: widget.onEscapeAnimationDone,
+                      onBlockedAnimationDone: widget.onBlockedAnimationDone,
+                    ),
                   ),
-              for (final piece in arrows)
-                Positioned(
-                  left: piece.position.col * step,
-                  top: piece.position.row * step,
-                  child: ArrowTile(
-                    key: ValueKey(piece.id),
-                    piece: piece,
-                    cellSize: cellSize,
-                    step: step,
-                    triggerEscape: animatingEscapeId == piece.id,
-                    triggerBlocked: animatingBlockedId == piece.id,
-                    onTap: () => onTapArrow(piece.id),
-                    onEscapeAnimationDone: onEscapeAnimationDone,
-                    onBlockedAnimationDone: onBlockedAnimationDone,
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -75,9 +141,10 @@ class BoardWidget extends StatelessWidget {
   }
 }
 
-class _EmptyDot extends StatelessWidget {
+class _GridDot extends StatelessWidget {
   final double cellSize;
-  const _EmptyDot({required this.cellSize});
+
+  const _GridDot({required this.cellSize});
 
   @override
   Widget build(BuildContext context) {
@@ -86,8 +153,8 @@ class _EmptyDot extends StatelessWidget {
       height: cellSize,
       child: Center(
         child: Container(
-          width: cellSize * 0.12,
-          height: cellSize * 0.12,
+          width: cellSize * 0.10,
+          height: cellSize * 0.10,
           decoration: const BoxDecoration(
             color: AppColors.gridLine,
             shape: BoxShape.circle,

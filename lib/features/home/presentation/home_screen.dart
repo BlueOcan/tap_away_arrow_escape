@@ -1,13 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../level_select/presentation/level_select_screen.dart';
+import '../../progress/presentation/progress_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _loadProgress();
+  }
+
+  Future<void> _loadProgress() async {
+    final saved = await ref
+        .read(progressRepositoryProvider)
+        .getMaxUnlockedLevel();
+    ref.read(progressNotifierProvider.notifier).state = saved;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final maxUnlocked = ref.watch(progressNotifierProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -16,11 +38,11 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(flex: 3),
-              _Logo(),
+              const _Logo(),
               const SizedBox(height: 12),
               Text(
-                'Level 1',
-                style: TextStyle(
+                'Level $maxUnlocked',
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: AppColors.accent,
@@ -46,7 +68,7 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const Spacer(flex: 2),
-              _BottomNav(),
+              const _BottomNav(),
             ],
           ),
         ),
@@ -56,6 +78,8 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _Logo extends StatelessWidget {
+  const _Logo();
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -65,7 +89,7 @@ class _Logo extends StatelessWidget {
           size: const Size(40, 36),
           painter: _TrianglePainter(color: AppColors.accentDark),
         ),
-        Text(
+        const Text(
           'rrows',
           style: TextStyle(
             fontSize: 42,
@@ -80,7 +104,7 @@ class _Logo extends StatelessWidget {
 
 class _TrianglePainter extends CustomPainter {
   final Color color;
-  _TrianglePainter({required this.color});
+  const _TrianglePainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -97,6 +121,8 @@ class _TrianglePainter extends CustomPainter {
 }
 
 class _BottomNav extends StatelessWidget {
+  const _BottomNav();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -105,12 +131,16 @@ class _BottomNav extends StatelessWidget {
         color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
+        children: [
           _NavItem(icon: Icons.home_rounded, label: 'Home', active: true),
-          _NavItem(icon: Icons.lock, label: 'Level 20', active: false),
-          _NavItem(icon: Icons.lock, label: 'Level 10', active: false),
+          _NavItem(icon: Icons.lock, label: 'Scores', active: false),
+          _NavItem(
+            icon: Icons.emoji_events_rounded,
+            label: 'Levels',
+            active: false,
+          ),
           _NavItem(icon: Icons.settings, label: 'Settings', active: false),
         ],
       ),

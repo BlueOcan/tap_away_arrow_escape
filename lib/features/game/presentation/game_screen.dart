@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../progress/presentation/progress_provider.dart';
 import '../domain/models/game_state.dart';
 import '../domain/models/level_model.dart';
+import '../domain/models/sample_levels.dart';
 import 'game_provider.dart';
 import 'widgets/board_widget.dart';
 import '../../../shared/widgets/hearts_widget.dart';
@@ -20,53 +22,83 @@ class GameScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Column(
-            children: [
-              _TopBar(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: _TopBar(
+                levelId: level.id,
                 onBack: () => Navigator.of(context).maybePop(),
                 onReset: () => controller.reset(),
                 livesRemaining: state.livesRemaining,
               ),
-              const SizedBox(height: 24),
-              Text(
-                'Arrows left: ${state.arrows.length}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: BoardWidget(
-                      level: state.level,
-                      arrows: state.arrows,
-                      animatingEscapeId: state.lastMove?.wasEscape == true
-                          ? state.lastMove!.pieceId
-                          : null,
-                      animatingBlockedId: state.lastMove?.wasEscape == false
-                          ? state.lastMove!.pieceId
-                          : null,
-                      onTapArrow: (id) => controller.tapArrow(id),
-                      onEscapeAnimationDone: () {
-                        final id = state.lastMove?.pieceId;
-                        if (id != null) controller.confirmEscape(id);
-                      },
-                      onBlockedAnimationDone: () => controller.clearLastMove(),
+            ),
+
+            // Arrow count + zoom hint
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Arrows: ${state.arrows.length}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
                     ),
                   ),
+                  Row(
+                    children: const [
+                      Icon(
+                        Icons.pinch,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Pinch to zoom',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Free canvas — fills all remaining space
+            Expanded(
+              child: ClipRect(
+                child: BoardWidget(
+                  level: state.level,
+                  arrows: state.arrows,
+                  animatingEscapeId: state.lastMove?.wasEscape == true
+                      ? state.lastMove!.pieceId
+                      : null,
+                  animatingBlockedId: state.lastMove?.wasEscape == false
+                      ? state.lastMove!.pieceId
+                      : null,
+                  onTapArrow: (id) => controller.tapArrow(id),
+                  onEscapeAnimationDone: () {
+                    final id = state.lastMove?.pieceId;
+                    if (id != null) controller.confirmEscape(id);
+                  },
+                  onBlockedAnimationDone: () => controller.clearLastMove(),
                 ),
               ),
-              const SizedBox(height: 24),
-              _buildBottomArea(context, state, controller),
-              const SizedBox(height: 12),
-            ],
-          ),
+            ),
+
+            // Result banner or spacer
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: _buildBottomArea(context, ref, state, controller),
+            ),
+          ],
         ),
       ),
     );
@@ -74,28 +106,48 @@ class GameScreen extends ConsumerWidget {
 
   Widget _buildBottomArea(
     BuildContext context,
+    WidgetRef ref,
     GameState state,
     GameController controller,
   ) {
     if (state.phase == GamePhase.won) {
       return _ResultBanner(
         won: true,
-        onContinue: () => Navigator.of(context).maybePop(true),
+        onContinue: () async {
+          await ref
+              .read(progressNotifierProvider.notifier)
+              .completeLevel(level.id);
+          if (!context.mounted) return;
+          final nextIndex =
+              SampleLevels.all.indexWhere((l) => l.id == level.id) + 1;
+          if (nextIndex < SampleLevels.all.length) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GameScreen(level: SampleLevels.all[nextIndex]),
+              ),
+            );
+          } else {
+            Navigator.of(context).maybePop(true);
+          }
+        },
       );
     }
     if (state.phase == GamePhase.lost) {
       return _ResultBanner(won: false, onContinue: () => controller.reset());
     }
-    return const SizedBox(height: 56);
+    return const SizedBox(height: 48);
   }
 }
 
 class _TopBar extends StatelessWidget {
+  final int levelId;
   final VoidCallback onBack;
   final VoidCallback onReset;
   final int livesRemaining;
 
   const _TopBar({
+    required this.levelId,
     required this.onBack,
     required this.onReset,
     required this.livesRemaining,
@@ -104,15 +156,20 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            _RoundIconButton(icon: Icons.arrow_back_ios_new, onTap: onBack),
-            const SizedBox(width: 12),
-            _RoundIconButton(icon: Icons.refresh, onTap: onReset),
-          ],
+        _RoundIconButton(icon: Icons.arrow_back_ios_new, onTap: onBack),
+        const SizedBox(width: 8),
+        _RoundIconButton(icon: Icons.refresh, onTap: onReset),
+        const Spacer(),
+        Text(
+          'Level $levelId',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
         ),
+        const Spacer(),
         HeartsWidget(livesRemaining: livesRemaining, maxLives: 3),
       ],
     );
@@ -152,19 +209,20 @@ class _ResultBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          won ? 'Level Complete!' : 'Out of hearts — try again',
+          won ? '🎉 Level Complete!' : 'Out of hearts — try again',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
             color: won ? AppColors.success : AppColors.path,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
-          height: 56,
+          height: 52,
           child: ElevatedButton(
             onPressed: onContinue,
             child: Text(won ? 'NEXT LEVEL' : 'RETRY'),

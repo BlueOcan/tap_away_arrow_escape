@@ -14,6 +14,12 @@ class ProgressNotifier extends StateNotifier<int> {
 
   ProgressNotifier(this._repo, int initial) : super(initial);
 
+  /// Safely seeds the initial maximum unlocked level fetched from disk
+  /// without throwing protected/visibleForTesting member mutation errors.
+  void initMaxUnlocked(int levelId) {
+    state = levelId;
+  }
+
   Future<void> completeLevel(int levelId) async {
     await _repo.unlockLevel(levelId + 1);
     if (levelId + 1 > state) {

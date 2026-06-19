@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../level_select/presentation/level_select_screen.dart';
 import '../../progress/presentation/progress_provider.dart';
 import '../domain/models/game_state.dart';
 import '../domain/models/level_model.dart';
-import '../domain/models/sample_levels.dart';
 import 'game_provider.dart';
 import 'widgets/board_widget.dart';
 import '../../../shared/widgets/hearts_widget.dart';
@@ -33,8 +33,6 @@ class GameScreen extends ConsumerWidget {
                 livesRemaining: state.livesRemaining,
               ),
             ),
-
-            // Arrow count + zoom hint
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -68,10 +66,7 @@ class GameScreen extends ConsumerWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 8),
-
-            // Free canvas — fills all remaining space
             Expanded(
               child: ClipRect(
                 child: BoardWidget(
@@ -92,8 +87,6 @@ class GameScreen extends ConsumerWidget {
                 ),
               ),
             ),
-
-            // Result banner or spacer
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
               child: _buildBottomArea(context, ref, state, controller),
@@ -118,13 +111,16 @@ class GameScreen extends ConsumerWidget {
               .read(progressNotifierProvider.notifier)
               .completeLevel(level.id);
           if (!context.mounted) return;
-          final nextIndex =
-              SampleLevels.all.indexWhere((l) => l.id == level.id) + 1;
-          if (nextIndex < SampleLevels.all.length) {
+
+          final levels = await ref.read(levelsProvider.future);
+          final nextIndex = levels.indexWhere((l) => l.id == level.id) + 1;
+          if (!context.mounted) return;
+
+          if (nextIndex < levels.length) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (_) => GameScreen(level: SampleLevels.all[nextIndex]),
+                builder: (_) => GameScreen(level: levels[nextIndex]),
               ),
             );
           } else {

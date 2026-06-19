@@ -2,54 +2,62 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../game/domain/models/level_loader.dart';
 import '../../game/domain/models/level_model.dart';
-import '../../game/domain/models/sample_levels.dart';
 import '../../game/presentation/game_screen.dart';
 import '../../progress/presentation/progress_provider.dart';
+
+final levelsProvider = FutureProvider<List<LevelModel>>((ref) {
+  return LevelLoader.loadAll();
+});
 
 class LevelSelectScreen extends ConsumerWidget {
   const LevelSelectScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final List<LevelModel> levels = SampleLevels.all;
+    final levelsAsync = ref.watch(levelsProvider);
     final maxUnlocked = ref.watch(progressNotifierProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Select Level')),
       backgroundColor: AppColors.background,
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 14,
-          ),
-          itemCount: levels.length,
-          itemBuilder: (context, index) {
-            final level = levels[index];
-            final isUnlocked = level.id <= maxUnlocked;
-            return _LevelTile(
-              level: level,
-              isUnlocked: isUnlocked,
-              onTap: isUnlocked
-                  ? () async {
-                      final completed = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => GameScreen(level: level),
-                        ),
-                      );
-                      if (completed == true) {
-                        await ref
-                            .read(progressNotifierProvider.notifier)
-                            .completeLevel(level.id);
+      body: levelsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, st) => Center(child: Text('Failed to load levels: $err')),
+        data: (levels) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+            ),
+            itemCount: levels.length,
+            itemBuilder: (context, index) {
+              final level = levels[index];
+              final isUnlocked = level.id <= maxUnlocked;
+              return _LevelTile(
+                level: level,
+                isUnlocked: isUnlocked,
+                onTap: isUnlocked
+                    ? () async {
+                        final completed = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => GameScreen(level: level),
+                          ),
+                        );
+                        if (completed == true) {
+                          await ref
+                              .read(progressNotifierProvider.notifier)
+                              .completeLevel(level.id);
+                        }
                       }
-                    }
-                  : null,
-            );
-          },
+                    : null,
+              );
+            },
+          ),
         ),
       ),
     );

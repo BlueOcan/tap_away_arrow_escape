@@ -1,10 +1,7 @@
 import 'direction.dart';
 import 'position.dart';
 
-enum ArrowShape {
-  straight, // classic single-direction arrow
-  lShape, // turns 90° — has a bend
-}
+enum ArrowShape { straight, bent }
 
 class ArrowPiece {
   final String id;
@@ -12,24 +9,47 @@ class ArrowPiece {
   final Direction direction;
   final int length;
   final ArrowShape shape;
-  final Direction?
-  turnDirection; // only for lShape: the direction after the turn
+  final List<Direction> bendDirections;
 
   const ArrowPiece({
     required this.id,
     required this.position,
-    required this.direction,
+    this.direction = Direction.up,
     this.length = 1,
     this.shape = ArrowShape.straight,
-    this.turnDirection,
+    this.bendDirections = const [],
   });
+
+  List<Direction> get segments {
+    if (shape == ArrowShape.bent) return bendDirections;
+    return List.filled(length, direction);
+  }
+
+  Direction get moveDirection {
+    if (shape == ArrowShape.bent && bendDirections.isNotEmpty) {
+      return bendDirections.last;
+    }
+    return direction;
+  }
+
+  List<Position> get bodyCells {
+    final cells = <Position>[position];
+    var cur = position;
+    for (final d in segments) {
+      cur = cur.move(d);
+      cells.add(cur);
+    }
+    return cells;
+  }
+
+  Position get headCell => bodyCells.last;
 
   ArrowPiece copyWith({
     Position? position,
     Direction? direction,
     int? length,
     ArrowShape? shape,
-    Direction? turnDirection,
+    List<Direction>? bendDirections,
   }) {
     return ArrowPiece(
       id: id,
@@ -37,7 +57,7 @@ class ArrowPiece {
       direction: direction ?? this.direction,
       length: length ?? this.length,
       shape: shape ?? this.shape,
-      turnDirection: turnDirection ?? this.turnDirection,
+      bendDirections: bendDirections ?? this.bendDirections,
     );
   }
 }

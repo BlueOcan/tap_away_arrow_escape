@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -10,6 +9,8 @@ class ArrowTile extends StatefulWidget {
   final ArrowPiece piece;
   final double cellSize;
   final double step;
+  final double boardOffsetX;
+  final double boardOffsetY;
   final bool triggerEscape;
   final bool triggerBlocked;
   final VoidCallback? onTap;
@@ -21,6 +22,8 @@ class ArrowTile extends StatefulWidget {
     required this.piece,
     required this.cellSize,
     required this.step,
+    required this.boardOffsetX,
+    required this.boardOffsetY,
     this.triggerEscape = false,
     this.triggerBlocked = false,
     this.onTap,
@@ -78,17 +81,14 @@ class _ArrowTileState extends State<ArrowTile>
   }
 
   Future<void> _playBlocked() async {
-    final escapeDir =
-        widget.piece.shape == ArrowShape.lShape &&
-            widget.piece.turnDirection != null
-        ? widget.piece.turnDirection!
-        : widget.piece.direction;
+    final escapeDir = widget.piece.moveDirection;
     final (dr, dc) = escapeDir.delta;
     final bump = Offset(
       dc * widget.cellSize * 0.18,
       dr * widget.cellSize * 0.18,
     );
 
+    if (!mounted) return;
     setState(() {
       _isFlashingRed = true;
       _blockedDuration = const Duration(milliseconds: 90);
@@ -106,57 +106,39 @@ class _ArrowTileState extends State<ArrowTile>
     widget.onBlockedAnimationDone?.call();
   }
 
-  /// Build segments in LOCAL canvas coordinates.
-  ///
-  /// Rule: the Positioned parent places this widget at
-  ///   left = piece.position.col * step
-  ///   top  = piece.position.row * step
-  ///
-  /// So inside the canvas the tail cell's TOP-LEFT is (0, 0).
-  /// The centre of that cell is (cs/2, cs/2).
-  /// Every other point is offset from there by multiples of [step].
   List<_Segment> _buildSegments() {
     final cs = widget.cellSize;
     final s = widget.step;
     final piece = widget.piece;
-
-    // Tail cell centre in local coords
     final tailCenter = Offset(cs / 2, cs / 2);
 
-    if (piece.shape == ArrowShape.lShape && piece.turnDirection != null) {
-      final (dr1, dc1) = piece.direction.delta;
-      final pivot = Offset(tailCenter.dx + dc1 * s, tailCenter.dy + dr1 * s);
-      final (dr2, dc2) = piece.turnDirection!.delta;
-      final tip = Offset(pivot.dx + dc2 * s, pivot.dy + dr2 * s);
-      return [
-        _Segment(start: tailCenter, end: pivot, direction: piece.direction),
-        _Segment(start: pivot, end: tip, direction: piece.turnDirection!),
-      ];
+    final segs = <_Segment>[];
+    var cursor = tailCenter;
+    for (final d in piece.segments) {
+      final (dr, dc) = d.delta;
+      final next = Offset(cursor.dx + dc * s, cursor.dy + dr * s);
+      segs.add(_Segment(start: cursor, end: next, direction: d));
+      cursor = next;
     }
-
-    // Straight — one segment spanning [length] cells
-    final (dr, dc) = piece.direction.delta;
-    final tip = Offset(
-      tailCenter.dx + dc * s * piece.length,
-      tailCenter.dy + dr * s * piece.length,
-    );
-    return [_Segment(start: tailCenter, end: tip, direction: piece.direction)];
+    if (segs.isEmpty) {
+      segs.add(
+        _Segment(
+          start: tailCenter,
+          end: tailCenter,
+          direction: piece.direction,
+        ),
+      );
+    }
+    return segs;
   }
 
-  /// The canvas must be large enough to contain ALL segment points
-  /// plus the escape overshoot in the head direction.
-  ///
-  /// We also need to handle arrows that extend BACKWARDS from the anchor
-  /// (e.g. a left-facing arrow: tail is at right side of canvas).
-  /// We solve this by giving the canvas extra room on all sides and then
-  /// translating the content so nothing is clipped.
   @override
   Widget build(BuildContext context) {
     final color = _isFlashingRed ? AppColors.path : AppColors.cellDefault;
     final cs = widget.cellSize;
     final segments = _buildSegments();
 
-    // Compute the natural bounding box of the segments
+    // Determine the exact bounding box of the active arrow body cells
     double minX = 0, minY = 0, maxX = cs, maxY = cs;
     for (final seg in segments) {
       for (final p in [seg.start, seg.end]) {
@@ -167,39 +149,33 @@ class _ArrowTileState extends State<ArrowTile>
       }
     }
 
-    // Add escape overshoot in the head direction
-    final headDir = segments.isNotEmpty
-        ? segments.last.direction
-        : widget.piece.direction;
-    final (hdr, hdc) = headDir.delta;
-    final overshoot = widget.step * 10;
-    if (hdc > 0) maxX += overshoot;
-    if (hdc < 0) minX -= overshoot;
-    if (hdr > 0) maxY += overshoot;
-    if (hdr < 0) minY -= overshoot;
-
-    // Canvas size
     final canvasW = maxX - minX;
     final canvasH = maxY - minY;
 
-    // We need to shift all drawing by (-minX, -minY) so everything fits
-    // inside the canvas. We also shift the widget itself by (minX, minY)
-    // so the tail cell still aligns with piece.position in the parent Stack.
+    // Shift drawing inside custom paint to perfectly fit the layout box bounds
     final drawOffset = Offset(-minX, -minY);
-    final widgetShift = Offset(minX, minY);
 
-    return AnimatedContainer(
-      duration: _blockedDuration,
-      transform: Matrix4.translationValues(
-        _blockedOffset.dx,
-        _blockedOffset.dy,
-        0,
-      ),
-      child: Transform.translate(
-        // widgetShift corrects the canvas position in the parent
-        offset: widgetShift,
+    // Precise placement inside the parent Stack layout bounds
+    final totalOffsetX =
+        widget.boardOffsetX + (widget.piece.position.col * widget.step) + minX;
+    final totalOffsetY =
+        widget.boardOffsetY + (widget.piece.position.row * widget.step) + minY;
+
+    return Positioned(
+      left: totalOffsetX,
+      top: totalOffsetY,
+      width: canvasW,
+      height: canvasH,
+      child: AnimatedContainer(
+        duration: _blockedDuration,
+        transform: Matrix4.translationValues(
+          _blockedOffset.dx,
+          _blockedOffset.dy,
+          0,
+        ),
         child: GestureDetector(
           onTap: widget.onTap,
+          behavior: HitTestBehavior.opaque,
           child: SizedBox(
             width: canvasW,
             height: canvasH,
@@ -220,8 +196,6 @@ class _ArrowTileState extends State<ArrowTile>
   }
 }
 
-// ─── Data ────────────────────────────────────────────────────────────────────
-
 class _Segment {
   final Offset start;
   final Offset end;
@@ -234,15 +208,13 @@ class _Segment {
   });
 }
 
-// ─── Painter ─────────────────────────────────────────────────────────────────
-
 class _SnakeArrowPainter extends CustomPainter {
   final List<_Segment> segments;
   final Color color;
   final double progress;
   final double cellSize;
   final double step;
-  final Offset drawOffset; // shifts all coordinates so they fit in the canvas
+  final Offset drawOffset;
 
   const _SnakeArrowPainter({
     required this.segments,
@@ -270,15 +242,11 @@ class _SnakeArrowPainter extends CustomPainter {
 
     final headLen = cellSize * 0.32;
 
-    // Full polyline: tail → ... → original head → escape overshoot point
     final fullPoints = _buildFullPolyline();
     final totalLen = _polylineLength(fullPoints);
 
     final escapeLen = step * 10.0;
     final arrowBodyLen = totalLen - escapeLen;
-
-    final headTravel = progress * (arrowBodyLen + escapeLen);
-    final tailCut = math.max(0.0, headTravel - arrowBodyLen);
 
     if (progress == 0.0) {
       _drawFullArrow(canvas, paint, headLen);
@@ -286,32 +254,29 @@ class _SnakeArrowPainter extends CustomPainter {
       return;
     }
 
-    final clipped = _clipPolyline(fullPoints, tailCut, headTravel);
-    if (clipped == null || clipped.points.length < 2) {
-      _drawFullArrow(canvas, paint, headLen);
+    final headTravel = arrowBodyLen + progress * escapeLen;
+    final tailCut = progress * totalLen;
+
+    final clippedFull = _clipPolyline(fullPoints, tailCut, headTravel);
+    if (clippedFull == null || clippedFull.points.length < 2) {
       canvas.restore();
       return;
     }
 
-    // Pull the shaft tip back by headLen so it doesn't overlap the triangle
-    final rawTip = clipped.points.last;
-    final secondLast = clipped
-        .points[clipped.points.length > 1 ? clipped.points.length - 2 : 0];
-    final shaftDir = (rawTip - secondLast);
-    final shaftDirNorm = shaftDir.distance > 0
-        ? shaftDir / shaftDir.distance
-        : Offset.zero;
-    final shaftTip = rawTip - shaftDirNorm * headLen;
+    final rawTip = clippedFull.points.last;
+    final shaftTopDist = math.max(tailCut, headTravel - headLen);
+    final clippedShaft = _clipPolyline(fullPoints, tailCut, shaftTopDist);
 
-    final path = Path()
-      ..moveTo(clipped.points.first.dx, clipped.points.first.dy);
-    for (var i = 1; i < clipped.points.length - 1; i++) {
-      path.lineTo(clipped.points[i].dx, clipped.points[i].dy);
+    if (clippedShaft != null && clippedShaft.points.length >= 2) {
+      final path = Path()
+        ..moveTo(clippedShaft.points.first.dx, clippedShaft.points.first.dy);
+      for (var i = 1; i < clippedShaft.points.length; i++) {
+        path.lineTo(clippedShaft.points[i].dx, clippedShaft.points[i].dy);
+      }
+      canvas.drawPath(path, paint);
     }
-    path.lineTo(shaftTip.dx, shaftTip.dy);
 
-    canvas.drawPath(path, paint);
-    _drawHead(canvas, rawTip, clipped.tipDirection, headLen);
+    _drawHead(canvas, rawTip, clippedFull.tipDirection, headLen);
 
     canvas.restore();
   }
@@ -319,11 +284,9 @@ class _SnakeArrowPainter extends CustomPainter {
   void _drawFullArrow(Canvas canvas, Paint paint, double headLen) {
     if (segments.isEmpty) return;
 
-    // Find the tip and shaft direction
     final tip = segments.last.end;
     final (dr, dc) = segments.last.direction.delta;
     final shaftDirNorm = Offset(dc.toDouble(), dr.toDouble());
-    // Pull shaft end back by headLen
     final shaftEnd = tip - shaftDirNorm * headLen;
 
     final path = Path()
@@ -342,7 +305,6 @@ class _SnakeArrowPainter extends CustomPainter {
     for (final seg in segments) {
       pts.add(seg.end);
     }
-    // Escape overshoot
     final last = pts.last;
     final (dr, dc) = segments.last.direction.delta;
     pts.add(Offset(last.dx + dc * step * 10, last.dy + dr * step * 10));
@@ -390,7 +352,6 @@ class _SnakeArrowPainter extends CustomPainter {
       if (result.isEmpty) result.add(p0);
       result.add(p1);
 
-      // Direction of this segment
       final dx = b.dx - a.dx;
       final dy = b.dy - a.dy;
       if (dx.abs() > dy.abs()) {

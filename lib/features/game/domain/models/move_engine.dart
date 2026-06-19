@@ -19,38 +19,40 @@ class MoveEngine {
     List<ArrowPiece> arrows,
     ArrowPiece piece,
   ) {
-    final occupied = {
-      for (final a in arrows)
-        if (a.id != piece.id) a.position,
-    };
-
-    // L-shaped arrows move in their turnDirection (the tip direction)
-    final moveDir =
-        piece.shape == ArrowShape.lShape && piece.turnDirection != null
-        ? piece.turnDirection!
-        : piece.direction;
+    final occupied = <Position>{};
+    for (final a in arrows) {
+      if (a.id == piece.id) continue;
+      occupied.addAll(a.bodyCells);
+    }
 
     final path = <Position>[];
-    var current = piece.position;
-    final maxSteps = level.boardCells.length + 4;
+    var currentBody = List<Position>.from(piece.bodyCells);
+    final moveDir = piece.moveDirection;
+
+    final maxSteps = level.boardCells.length + 6;
     var steps = 0;
 
     while (steps < maxSteps) {
-      current = current.move(moveDir);
+      // Shift the entire rigid structure by one step along the departure vector
+      currentBody = currentBody.map((pos) => pos.move(moveDir)).toList();
       steps++;
 
-      if (!level.boardCells.contains(current)) {
+      // Check if the entire structure has cleared the board completely
+      final anyPartStillOnBoard = currentBody.any(
+        (pos) => level.boardCells.contains(pos),
+      );
+      if (!anyPartStillOnBoard) {
         return MoveResult(MoveOutcome.escaped, path);
       }
 
-      if (occupied.contains(current)) {
-        path.add(current);
-        return MoveResult(MoveOutcome.blocked, path);
+      // Check if any single part of our shifted body collides with another piece
+      for (final pos in currentBody) {
+        if (occupied.contains(pos) && level.boardCells.contains(pos)) {
+          path.add(pos); // Track where collision happened
+          return MoveResult(MoveOutcome.blocked, path);
+        }
       }
-
-      path.add(current);
     }
-
     return MoveResult(MoveOutcome.blocked, path);
   }
 }

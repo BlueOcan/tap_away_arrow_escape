@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/models/arrow_piece.dart';
-import '../../domain/models/direction.dart';
 import '../../domain/models/level_model.dart';
 import '../../domain/models/position.dart';
 import 'arrow_tile.dart';
@@ -41,33 +40,11 @@ class _BoardWidgetState extends State<BoardWidget> {
     super.dispose();
   }
 
-  /// Returns every grid cell that is covered by an arrow body or head.
   Set<Position> _computeHiddenDots() {
     final hidden = <Position>{};
-
     for (final piece in widget.arrows) {
-      hidden.add(piece.position);
-
-      if (piece.shape == ArrowShape.lShape && piece.turnDirection != null) {
-        final (dr1, dc1) = piece.direction.delta;
-        final pivot = Position(
-          piece.position.row + dr1,
-          piece.position.col + dc1,
-        );
-        hidden.add(pivot);
-
-        final (dr2, dc2) = piece.turnDirection!.delta;
-        hidden.add(Position(pivot.row + dr2, pivot.col + dc2));
-      } else {
-        final (dr, dc) = piece.direction.delta;
-        for (var i = 1; i <= piece.length; i++) {
-          hidden.add(
-            Position(piece.position.row + dr * i, piece.position.col + dc * i),
-          );
-        }
-      }
+      hidden.addAll(piece.bodyCells);
     }
-
     return hidden;
   }
 
@@ -83,10 +60,10 @@ class _BoardWidgetState extends State<BoardWidget> {
       if (pos.col > maxCol) maxCol = pos.col;
     }
 
-    final canvasW = (maxCol + 1) * step + cellSize * 4;
-    final canvasH = (maxRow + 1) * step + cellSize * 4;
+    final canvasW = (maxCol + 1) * step + cellSize * 2;
+    final canvasH = (maxRow + 1) * step + cellSize * 2;
 
-    const boardPadding = 2.0;
+    const boardPadding = 1.0;
     final boardOffsetX = boardPadding * step;
     final boardOffsetY = boardPadding * step;
 
@@ -106,7 +83,7 @@ class _BoardWidgetState extends State<BoardWidget> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // Dots — only for cells NOT covered by any arrow
+                // 1. Render Background Grid Dots
                 for (final pos in widget.level.boardCells)
                   if (!hiddenDots.contains(pos))
                     Positioned(
@@ -115,22 +92,20 @@ class _BoardWidgetState extends State<BoardWidget> {
                       child: _GridDot(cellSize: cellSize),
                     ),
 
-                // Arrows
+                // 2. Render Dynamic Arrow Game Pieces
                 for (final piece in widget.arrows)
-                  Positioned(
-                    left: boardOffsetX + piece.position.col * step,
-                    top: boardOffsetY + piece.position.row * step,
-                    child: ArrowTile(
-                      key: ValueKey(piece.id),
-                      piece: piece,
-                      cellSize: cellSize,
-                      step: step,
-                      triggerEscape: widget.animatingEscapeId == piece.id,
-                      triggerBlocked: widget.animatingBlockedId == piece.id,
-                      onTap: () => widget.onTapArrow(piece.id),
-                      onEscapeAnimationDone: widget.onEscapeAnimationDone,
-                      onBlockedAnimationDone: widget.onBlockedAnimationDone,
-                    ),
+                  ArrowTile(
+                    key: ValueKey(piece.id),
+                    piece: piece,
+                    cellSize: cellSize,
+                    step: step,
+                    boardOffsetX: boardOffsetX,
+                    boardOffsetY: boardOffsetY,
+                    triggerEscape: widget.animatingEscapeId == piece.id,
+                    triggerBlocked: widget.animatingBlockedId == piece.id,
+                    onTap: () => widget.onTapArrow(piece.id),
+                    onEscapeAnimationDone: widget.onEscapeAnimationDone,
+                    onBlockedAnimationDone: widget.onBlockedAnimationDone,
                   ),
               ],
             ),

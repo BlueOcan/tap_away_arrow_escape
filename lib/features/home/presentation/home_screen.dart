@@ -16,14 +16,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProgress();
+    // Schedule state initialization safely immediately after the layout pass
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProgress();
+    });
   }
 
   Future<void> _loadProgress() async {
     final saved = await ref
         .read(progressRepositoryProvider)
         .getMaxUnlockedLevel();
-    ref.read(progressNotifierProvider.notifier).state = saved;
+
+    // Safely updates the notifier without triggering protected member lint warnings
+    ref.read(progressNotifierProvider.notifier).initMaxUnlocked(saved);
   }
 
   @override
@@ -53,6 +58,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 width: double.infinity,
                 height: 64,
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
                   onPressed: () {
                     Navigator.push(
                       context,

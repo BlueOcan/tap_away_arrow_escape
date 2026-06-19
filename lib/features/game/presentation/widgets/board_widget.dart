@@ -54,22 +54,23 @@ class _BoardWidgetState extends State<BoardWidget> {
     final gap = cellSize * 0.15;
     final step = cellSize + gap;
 
-    int maxRow = 0, maxCol = 0;
+    int maxX = 0, maxY = 0;
+
     for (final pos in widget.level.boardCells) {
-      if (pos.row > maxRow) maxRow = pos.row;
-      if (pos.col > maxCol) maxCol = pos.col;
+      if (pos.x > maxX) maxX = pos.x;
+      if (pos.y > maxY) maxY = pos.y;
     }
 
-    final canvasW = (maxCol + 1) * step + cellSize * 2;
-    final canvasH = (maxRow + 1) * step + cellSize * 2;
+    final canvasW = (maxX + 1) * step + cellSize * 2;
+    final canvasH = (maxY + 1) * step + cellSize * 2;
 
     const boardPadding = 1.0;
+
     final boardOffsetX = boardPadding * step;
     final boardOffsetY = boardPadding * step;
 
     final hiddenDots = _computeHiddenDots();
 
-    // Resolve colors once from context so they pass down correctly
     final dotColor = AppColors.grid(context);
     final arrowColor = AppColors.cell(context);
 
@@ -87,16 +88,14 @@ class _BoardWidgetState extends State<BoardWidget> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // 1. Background grid dots
                 for (final pos in widget.level.boardCells)
                   if (!hiddenDots.contains(pos))
                     Positioned(
-                      left: boardOffsetX + pos.col * step,
-                      top: boardOffsetY + pos.row * step,
+                      left: boardOffsetX + pos.x * step,
+                      top: boardOffsetY + pos.y * step,
                       child: _GridDot(cellSize: cellSize, color: dotColor),
                     ),
 
-                // 2. Arrow game pieces
                 for (final piece in widget.arrows)
                   ArrowTile(
                     key: ValueKey(piece.id),

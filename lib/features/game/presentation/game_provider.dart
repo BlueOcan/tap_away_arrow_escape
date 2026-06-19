@@ -22,80 +22,50 @@ class GameController extends StateNotifier<GameState> {
         break;
       }
     }
+
     if (piece == null) return;
 
-    // ── RIGID BODY COLLISION ENGINE ──────────────────────────────────────────
-    int dRow = 0;
-    int dCol = 0;
+    final otherArrows = state.arrows.where((a) => a.id != pieceId).toList();
 
-    // Map your Direction enum safely to coordinate shifts
-    switch (piece.exitDirection) {
-      case Direction.up:
-        dRow = -1;
-        break;
-      case Direction.down:
-        dRow = 1;
-        break;
-      case Direction.left:
-        dCol = -1;
-        break;
-      case Direction.right:
-        dCol = 1;
-        break;
+    final occupied = <Position>{};
+    for (final a in otherArrows) {
+      occupied.addAll(a.bodyCells);
     }
 
-    final otherArrows = state.arrows.where((a) => a.id != pieceId).toList();
-    bool isEscape = true;
-    int step = 1;
+    final moveDir = piece.segments.isNotEmpty
+        ? piece.segments.last
+        : Direction.right;
 
-    // Track the entire slide trajectory of the rigid block until it exits the board
-    while (true) {
-      // Shift every single piece coordinate uniformly by the direction vector step
-      final shiftedPositions = piece.body.map((pos) {
-        return Position(pos.row + (dRow * step), pos.col + (dCol * step));
-      }).toList();
+    final (dx, dy) = moveDir.delta;
 
-      // Check if any part of this step's shifted block occupies the board boundaries
-      bool anyCellOnBoard = false;
-      for (final pos in shiftedPositions) {
-        final isOnBoard = state.level.boardCells.any(
-          (cell) => cell.row == pos.row && cell.col == pos.col,
-        );
-        if (isOnBoard) {
-          anyCellOnBoard = true;
-          break;
-        }
-      }
+    var currentBody = List<Position>.from(piece.body);
 
-      // If the entire rigid layout has moved outside board boundaries, it successfully escaped!
-      if (!anyCellOnBoard) {
-        break;
-      }
+    bool isEscape = false;
 
-      // Check if the current block path overlaps with any other remaining pieces
-      bool collided = false;
-      for (final other in otherArrows) {
-        for (final shiftedPos in shiftedPositions) {
-          final hitsOther = other.body.any(
-            (b) => b.row == shiftedPos.row && b.col == shiftedPos.col,
-          );
-          if (hitsOther) {
-            collided = true;
-            break;
-          }
-        }
-        if (collided) break;
-      }
+    final maxSteps = state.level.boardCells.length + 6;
 
-      // If a collision occurs at any step along the path, flag movement as blocked
-      if (collided) {
+    for (var step = 0; step < maxSteps; step++) {
+      final head = currentBody.last;
+
+      final nextHead = Position(head.x + dx, head.y + dy);
+
+      if (occupied.contains(nextHead) &&
+          state.level.boardCells.contains(nextHead)) {
         isEscape = false;
         break;
       }
 
-      step++;
+      currentBody = [...currentBody.sublist(1), nextHead];
+
+      final anyOnBoard = currentBody.any(
+        (pos) => state.level.boardCells.contains(pos),
+      );
+
+      if (!anyOnBoard) {
+        isEscape = true;
+        break;
+      }
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
     if (isEscape) {
       state = state.copyWith(
@@ -115,6 +85,7 @@ class GameController extends StateNotifier<GameState> {
 
   void confirmEscape(String pieceId) {
     final remainingArrows = state.arrows.where((a) => a.id != pieceId).toList();
+
     final won = remainingArrows.isEmpty;
 
     state = GameState(

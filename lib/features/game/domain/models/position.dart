@@ -1,23 +1,23 @@
 import 'direction.dart';
 
 class Position {
-  final int row;
-  final int col;
+  final int x;
+  final int y;
 
-  const Position(this.row, this.col);
+  const Position(this.x, this.y);
 
   Position move(Direction dir) {
-    final (dr, dc) = dir.delta;
-    return Position(row + dr, col + dc);
+    final (dx, dy) = dir.delta;
+    return Position(x + dx, y + dy);
   }
 
   @override
   bool operator ==(Object other) =>
-      other is Position && other.row == row && other.col == col;
+      other is Position && other.x == x && other.y == y;
 
   @override
-  int get hashCode => Object.hash(row, col);
+  int get hashCode => Object.hash(x, y);
 
   @override
-  String toString() => '($row,$col)';
+  String toString() => '($x,$y)';
 }

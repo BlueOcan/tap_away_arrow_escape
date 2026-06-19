@@ -25,34 +25,33 @@ class MoveEngine {
       occupied.addAll(a.bodyCells);
     }
 
-    final path = <Position>[];
+    // Snake/train movement: only the HEAD needs a clear cell.
+    // Each body cell slides into the position previously held by the cell ahead of it.
+    // Collision check is ONLY on the next position of the HEAD.
     var currentBody = List<Position>.from(piece.bodyCells);
     final moveDir = piece.moveDirection;
+    final path = <Position>[];
 
     final maxSteps = level.boardCells.length + 6;
-    var steps = 0;
 
-    while (steps < maxSteps) {
-      // Shift the entire rigid structure by one step along the departure vector
-      currentBody = currentBody.map((pos) => pos.move(moveDir)).toList();
-      steps++;
+    for (var step = 0; step < maxSteps; step++) {
+      final nextHead = currentBody.last.move(moveDir);
 
-      // Check if the entire structure has cleared the board completely
-      final anyPartStillOnBoard = currentBody.any(
-        (pos) => level.boardCells.contains(pos),
-      );
-      if (!anyPartStillOnBoard) {
+      // Check if next head position hits another piece on a valid board cell
+      if (occupied.contains(nextHead) && level.boardCells.contains(nextHead)) {
+        return MoveResult(MoveOutcome.blocked, path);
+      }
+
+      // Slide: new head appended, old tail dropped (snake movement)
+      currentBody = [...currentBody.sublist(1), nextHead];
+
+      // Escape condition: entire body has left the board
+      final anyOnBoard = currentBody.any(level.boardCells.contains);
+      if (!anyOnBoard) {
         return MoveResult(MoveOutcome.escaped, path);
       }
-
-      // Check if any single part of our shifted body collides with another piece
-      for (final pos in currentBody) {
-        if (occupied.contains(pos) && level.boardCells.contains(pos)) {
-          path.add(pos); // Track where collision happened
-          return MoveResult(MoveOutcome.blocked, path);
-        }
-      }
     }
+
     return MoveResult(MoveOutcome.blocked, path);
   }
 }

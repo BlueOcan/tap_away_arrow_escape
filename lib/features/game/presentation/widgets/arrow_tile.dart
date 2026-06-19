@@ -84,10 +84,11 @@ class _ArrowTileState extends State<ArrowTile>
 
   Future<void> _playBlocked() async {
     final escapeDir = widget.piece.moveDirection;
-    final (dr, dc) = escapeDir.delta;
+    final (dx, dy) = escapeDir.delta;
+
     final bump = Offset(
-      dc * widget.cellSize * 0.18,
-      dr * widget.cellSize * 0.18,
+      dx * widget.cellSize * 0.18,
+      dy * widget.cellSize * 0.18,
     );
     if (!mounted) return;
     setState(() {
@@ -116,8 +117,9 @@ class _ArrowTileState extends State<ArrowTile>
     final segs = <_Segment>[];
     var cursor = tailCenter;
     for (final d in piece.segments) {
-      final (dr, dc) = d.delta;
-      final next = Offset(cursor.dx + dc * s, cursor.dy + dr * s);
+      final (dx, dy) = d.delta;
+
+      final next = Offset(cursor.dx + dx * s, cursor.dy + dy * s);
       segs.add(_Segment(start: cursor, end: next, direction: d));
       cursor = next;
     }
@@ -155,9 +157,10 @@ class _ArrowTileState extends State<ArrowTile>
     final drawOffset = Offset(-minX, -minY);
 
     final totalOffsetX =
-        widget.boardOffsetX + (widget.piece.position.col * widget.step) + minX;
+        widget.boardOffsetX + (widget.piece.position.x * widget.step) + minX;
+
     final totalOffsetY =
-        widget.boardOffsetY + (widget.piece.position.row * widget.step) + minY;
+        widget.boardOffsetY + (widget.piece.position.y * widget.step) + minY;
 
     return Positioned(
       left: totalOffsetX,
@@ -278,8 +281,9 @@ class _SnakeArrowPainter extends CustomPainter {
   void _drawFullArrow(Canvas canvas, Paint paint, double headLen) {
     if (segments.isEmpty) return;
     final tip = segments.last.end;
-    final (dr, dc) = segments.last.direction.delta;
-    final shaftDirNorm = Offset(dc.toDouble(), dr.toDouble());
+    final (dx, dy) = segments.last.direction.delta;
+
+    final shaftDirNorm = Offset(dx.toDouble(), dy.toDouble());
     final shaftEnd = tip - shaftDirNorm * headLen;
 
     final path = Path()
@@ -299,8 +303,9 @@ class _SnakeArrowPainter extends CustomPainter {
       pts.add(seg.end);
     }
     final last = pts.last;
-    final (dr, dc) = segments.last.direction.delta;
-    pts.add(Offset(last.dx + dc * step * 10, last.dy + dr * step * 10));
+    final (dx, dy) = segments.last.direction.delta;
+
+    pts.add(Offset(last.dx + dx * step * 10, last.dy + dy * step * 10));
     return pts;
   }
 

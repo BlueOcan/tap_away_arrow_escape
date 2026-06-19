@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/app_colors.dart';
 
 class HeartsWidget extends StatelessWidget {
@@ -22,7 +21,7 @@ class HeartsWidget extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4),
           child: Icon(
             filled ? Icons.favorite : Icons.favorite_border,
-            color: filled ? AppColors.heartFilled : AppColors.heartEmpty,
+            color: AppColors.heart(context, filled: filled),
             size: 26,
           ),
         );

@@ -19,12 +19,23 @@ class LevelSelectScreen extends ConsumerWidget {
     final levelsAsync = ref.watch(levelsProvider);
     final maxUnlocked = ref.watch(progressNotifierProvider);
 
+    final bg = AppColors.bg(context);
+    final surf = AppColors.surf(context);
+    final surfMut = AppColors.surfMuted(context);
+    final textPrim = AppColors.textPrim(context);
+    final textSec = AppColors.textSec(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Select Level')),
-      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text('Select Level', style: TextStyle(color: textPrim)),
+        backgroundColor: bg,
+        foregroundColor: textPrim,
+        iconTheme: IconThemeData(color: textPrim),
+      ),
+      backgroundColor: bg,
       body: levelsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, st) => Center(child: Text('Failed to load levels: $err')),
+        error: (err, _) => Center(child: Text('Failed to load levels: $err')),
         data: (levels) => Padding(
           padding: const EdgeInsets.all(20),
           child: GridView.builder(
@@ -40,6 +51,9 @@ class LevelSelectScreen extends ConsumerWidget {
               return _LevelTile(
                 level: level,
                 isUnlocked: isUnlocked,
+                surfaceColor: isUnlocked ? surf : surfMut,
+                textPrimary: textPrim,
+                textSecondary: textSec,
                 onTap: isUnlocked
                     ? () async {
                         final completed = await Navigator.push<bool>(
@@ -67,11 +81,17 @@ class LevelSelectScreen extends ConsumerWidget {
 class _LevelTile extends StatelessWidget {
   final LevelModel level;
   final bool isUnlocked;
+  final Color surfaceColor;
+  final Color textPrimary;
+  final Color textSecondary;
   final VoidCallback? onTap;
 
   const _LevelTile({
     required this.level,
     required this.isUnlocked,
+    required this.surfaceColor,
+    required this.textPrimary,
+    required this.textSecondary,
     required this.onTap,
   });
 
@@ -93,7 +113,7 @@ class _LevelTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: isUnlocked ? AppColors.surface : AppColors.surfaceMuted,
+          color: surfaceColor,
           borderRadius: BorderRadius.circular(16),
           border: isUnlocked
               ? Border.all(
@@ -110,9 +130,7 @@ class _LevelTile extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: isUnlocked
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
+                  color: isUnlocked ? textPrimary : textSecondary,
                 ),
               ),
             ),
@@ -120,11 +138,7 @@ class _LevelTile extends StatelessWidget {
               Positioned(
                 top: 6,
                 right: 6,
-                child: Icon(
-                  Icons.lock_rounded,
-                  size: 12,
-                  color: AppColors.textSecondary,
-                ),
+                child: Icon(Icons.lock_rounded, size: 12, color: textSecondary),
               ),
             if (isUnlocked)
               Positioned(

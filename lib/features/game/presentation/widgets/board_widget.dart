@@ -69,6 +69,10 @@ class _BoardWidgetState extends State<BoardWidget> {
 
     final hiddenDots = _computeHiddenDots();
 
+    // Resolve colors once from context so they pass down correctly
+    final dotColor = AppColors.grid(context);
+    final arrowColor = AppColors.cell(context);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return InteractiveViewer(
@@ -83,16 +87,16 @@ class _BoardWidgetState extends State<BoardWidget> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // 1. Render Background Grid Dots
+                // 1. Background grid dots
                 for (final pos in widget.level.boardCells)
                   if (!hiddenDots.contains(pos))
                     Positioned(
                       left: boardOffsetX + pos.col * step,
                       top: boardOffsetY + pos.row * step,
-                      child: _GridDot(cellSize: cellSize),
+                      child: _GridDot(cellSize: cellSize, color: dotColor),
                     ),
 
-                // 2. Render Dynamic Arrow Game Pieces
+                // 2. Arrow game pieces
                 for (final piece in widget.arrows)
                   ArrowTile(
                     key: ValueKey(piece.id),
@@ -101,6 +105,7 @@ class _BoardWidgetState extends State<BoardWidget> {
                     step: step,
                     boardOffsetX: boardOffsetX,
                     boardOffsetY: boardOffsetY,
+                    arrowColor: arrowColor,
                     triggerEscape: widget.animatingEscapeId == piece.id,
                     triggerBlocked: widget.animatingBlockedId == piece.id,
                     onTap: () => widget.onTapArrow(piece.id),
@@ -118,8 +123,9 @@ class _BoardWidgetState extends State<BoardWidget> {
 
 class _GridDot extends StatelessWidget {
   final double cellSize;
+  final Color color;
 
-  const _GridDot({required this.cellSize});
+  const _GridDot({required this.cellSize, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -130,10 +136,7 @@ class _GridDot extends StatelessWidget {
         child: Container(
           width: cellSize * 0.10,
           height: cellSize * 0.10,
-          decoration: const BoxDecoration(
-            color: AppColors.gridLine,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       ),
     );

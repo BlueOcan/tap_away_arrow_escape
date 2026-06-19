@@ -19,8 +19,12 @@ class GameScreen extends ConsumerWidget {
     final state = ref.watch(gameControllerProvider(level));
     final controller = ref.read(gameControllerProvider(level).notifier);
 
+    final bg = AppColors.bg(context);
+    final textPrim = AppColors.textPrim(context);
+    final textSec = AppColors.textSec(context);
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -28,11 +32,16 @@ class GameScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: _TopBar(
                 levelId: level.id,
+                difficulty: level.difficulty,
                 onBack: () => Navigator.of(context).maybePop(),
                 onReset: () => controller.reset(),
                 livesRemaining: state.livesRemaining,
+                textPrimary: textPrim,
+                bgColor: bg,
               ),
             ),
+            Divider(height: 1, color: AppColors.grid(context)),
+            const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -40,26 +49,19 @@ class GameScreen extends ConsumerWidget {
                 children: [
                   Text(
                     'Arrows: ${state.arrows.length}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
+                      color: textSec,
                     ),
                   ),
                   Row(
-                    children: const [
-                      Icon(
-                        Icons.pinch,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                      SizedBox(width: 4),
+                    children: [
+                      Icon(Icons.pinch, size: 14, color: textSec),
+                      const SizedBox(width: 4),
                       Text(
                         'Pinch to zoom',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
+                        style: TextStyle(fontSize: 12, color: textSec),
                       ),
                     ],
                   ),
@@ -111,11 +113,9 @@ class GameScreen extends ConsumerWidget {
               .read(progressNotifierProvider.notifier)
               .completeLevel(level.id);
           if (!context.mounted) return;
-
           final levels = await ref.read(levelsProvider.future);
           final nextIndex = levels.indexWhere((l) => l.id == level.id) + 1;
           if (!context.mounted) return;
-
           if (nextIndex < levels.length) {
             Navigator.pushReplacement(
               context,
@@ -136,37 +136,77 @@ class GameScreen extends ConsumerWidget {
   }
 }
 
+// ── Top bar ───────────────────────────────────────────────────────────────────
 class _TopBar extends StatelessWidget {
   final int levelId;
+  final String difficulty;
   final VoidCallback onBack;
   final VoidCallback onReset;
   final int livesRemaining;
+  final Color textPrimary;
+  final Color bgColor;
 
   const _TopBar({
     required this.levelId,
+    required this.difficulty,
     required this.onBack,
     required this.onReset,
     required this.livesRemaining,
+    required this.textPrimary,
+    required this.bgColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Both action buttons combined take up exactly 88px of width (40 + 8 + 40).
     return Row(
       children: [
-        _RoundIconButton(icon: Icons.arrow_back_ios_new, onTap: onBack),
-        const SizedBox(width: 8),
-        _RoundIconButton(icon: Icons.refresh, onTap: onReset),
-        const Spacer(),
-        Text(
-          'Level $levelId',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+        // Left Side action container
+        SizedBox(
+          width: 88,
+          child: Row(
+            children: [
+              _RoundIconButton(
+                icon: Icons.arrow_back_ios_new,
+                onTap: onBack,
+                bgColor: AppColors.surf(context),
+                iconColor: textPrimary,
+              ),
+              const SizedBox(width: 8),
+              _RoundIconButton(
+                icon: Icons.refresh,
+                onTap: onReset,
+                bgColor: AppColors.surf(context),
+                iconColor: textPrimary,
+              ),
+            ],
           ),
         ),
-        const Spacer(),
-        HeartsWidget(livesRemaining: livesRemaining, maxLives: 3),
+
+        // Center Area (Dynamically handles text clipping if it's too long)
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                difficulty[0].toUpperCase() + difficulty.substring(1),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.accent,
+                ),
+              ),
+              const SizedBox(height: 2),
+              HeartsWidget(livesRemaining: livesRemaining, maxLives: 3),
+            ],
+          ),
+        ),
+
+        // Right side matching width placeholder to keep the center completely centered
+        const SizedBox(width: 88),
       ],
     );
   }
@@ -175,8 +215,15 @@ class _TopBar extends StatelessWidget {
 class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
+  final Color bgColor;
+  final Color iconColor;
 
-  const _RoundIconButton({required this.icon, required this.onTap});
+  const _RoundIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.bgColor,
+    required this.iconColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -187,15 +234,16 @@ class _RoundIconButton extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: bgColor,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Icon(icon, size: 18, color: AppColors.textPrimary),
+        child: Icon(icon, size: 18, color: iconColor),
       ),
     );
   }
 }
 
+// ── Result banner ─────────────────────────────────────────────────────────────
 class _ResultBanner extends StatelessWidget {
   final bool won;
   final VoidCallback onContinue;

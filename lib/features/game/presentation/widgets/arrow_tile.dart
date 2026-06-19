@@ -11,6 +11,7 @@ class ArrowTile extends StatefulWidget {
   final double step;
   final double boardOffsetX;
   final double boardOffsetY;
+  final Color arrowColor; // ← injected by BoardWidget
   final bool triggerEscape;
   final bool triggerBlocked;
   final VoidCallback? onTap;
@@ -24,6 +25,7 @@ class ArrowTile extends StatefulWidget {
     required this.step,
     required this.boardOffsetX,
     required this.boardOffsetY,
+    required this.arrowColor,
     this.triggerEscape = false,
     this.triggerBlocked = false,
     this.onTap,
@@ -87,7 +89,6 @@ class _ArrowTileState extends State<ArrowTile>
       dc * widget.cellSize * 0.18,
       dr * widget.cellSize * 0.18,
     );
-
     if (!mounted) return;
     setState(() {
       _isFlashingRed = true;
@@ -134,11 +135,11 @@ class _ArrowTileState extends State<ArrowTile>
 
   @override
   Widget build(BuildContext context) {
-    final color = _isFlashingRed ? AppColors.path : AppColors.cellDefault;
+    // Use flashing red on block; otherwise use the injected arrowColor
+    final color = _isFlashingRed ? AppColors.path : widget.arrowColor;
     final cs = widget.cellSize;
     final segments = _buildSegments();
 
-    // Determine the exact bounding box of the active arrow body cells
     double minX = 0, minY = 0, maxX = cs, maxY = cs;
     for (final seg in segments) {
       for (final p in [seg.start, seg.end]) {
@@ -151,11 +152,8 @@ class _ArrowTileState extends State<ArrowTile>
 
     final canvasW = maxX - minX;
     final canvasH = maxY - minY;
-
-    // Shift drawing inside custom paint to perfectly fit the layout box bounds
     final drawOffset = Offset(-minX, -minY);
 
-    // Precise placement inside the parent Stack layout bounds
     final totalOffsetX =
         widget.boardOffsetX + (widget.piece.position.col * widget.step) + minX;
     final totalOffsetY =
@@ -200,7 +198,6 @@ class _Segment {
   final Offset start;
   final Offset end;
   final Direction direction;
-
   const _Segment({
     required this.start,
     required this.end,
@@ -241,10 +238,8 @@ class _SnakeArrowPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final headLen = cellSize * 0.32;
-
     final fullPoints = _buildFullPolyline();
     final totalLen = _polylineLength(fullPoints);
-
     final escapeLen = step * 10.0;
     final arrowBodyLen = totalLen - escapeLen;
 
@@ -277,13 +272,11 @@ class _SnakeArrowPainter extends CustomPainter {
     }
 
     _drawHead(canvas, rawTip, clippedFull.tipDirection, headLen);
-
     canvas.restore();
   }
 
   void _drawFullArrow(Canvas canvas, Paint paint, double headLen) {
     if (segments.isEmpty) return;
-
     final tip = segments.last.end;
     final (dr, dc) = segments.last.direction.delta;
     final shaftDirNorm = Offset(dc.toDouble(), dr.toDouble());
@@ -359,10 +352,8 @@ class _SnakeArrowPainter extends CustomPainter {
       } else {
         tipDir = dy > 0 ? Direction.down : Direction.up;
       }
-
       traveled = segEnd;
     }
-
     if (result.length < 2) return null;
     return _ClippedPolyline(points: result, tipDirection: tipDir);
   }

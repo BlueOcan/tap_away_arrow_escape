@@ -27,8 +27,10 @@ class LevelLoader {
 
   static LevelModel _parseLevel(Map<String, dynamic> json) {
     final boardCellsJson = json['boardCells'] as List<dynamic>;
+
+    // Maps index 0 to Column (X) and index 1 to Row (Y)
     final boardCells = boardCellsJson
-        .map((c) => Position((c as List)[0] as int, c[1] as int))
+        .map((c) => Position((c as List)[1] as int, c[0] as int))
         .toSet();
 
     final arrowsJson = json['arrows'] as List<dynamic>;
@@ -47,34 +49,25 @@ class LevelLoader {
   }
 
   static ArrowPiece _parseArrow(Map<String, dynamic> json) {
-    final posJson = json['position'] as List<dynamic>;
-    final shapeStr = json['shape'] as String? ?? 'straight';
+    final bodyJson = json['body'] as List<dynamic>;
 
-    if (shapeStr == 'bent') {
-      final bendListJson = json['bendDirections'] as List<dynamic>;
-      final bendDirections = bendListJson
-          .map((d) => _parseDirection(d as String))
-          .toList();
-
-      return ArrowPiece(
-        id: json['id'] as String,
-        position: Position(posJson[0] as int, posJson[1] as int),
-        shape: ArrowShape.bent,
-        bendDirections: bendDirections,
-      );
-    }
+    // Maps absolute coordinate lists [X, Y] directly to Position(row, col)
+    final body = bodyJson.map((c) {
+      final coord = c as List<dynamic>;
+      final int x = coord[0] as int; // Column
+      final int y = coord[1] as int; // Row
+      return Position(y, x); // Position(row, col)
+    }).toList();
 
     return ArrowPiece(
       id: json['id'] as String,
-      position: Position(posJson[0] as int, posJson[1] as int),
-      direction: _parseDirection(json['direction'] as String),
-      length: (json['length'] as int?) ?? 1,
-      shape: ArrowShape.straight,
+      body: body,
+      exitDirection: _parseDirection(json['exitDirection'] as String),
     );
   }
 
   static Direction _parseDirection(String s) {
-    switch (s) {
+    switch (s.toLowerCase().trim()) {
       case 'up':
         return Direction.up;
       case 'down':

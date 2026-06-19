@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../level_select/presentation/level_select_screen.dart';
 import '../../progress/presentation/progress_provider.dart';
+import '../../settings/presentation/settings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -16,38 +17,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Schedule state initialization safely immediately after the layout pass
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadProgress();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProgress());
   }
 
   Future<void> _loadProgress() async {
     final saved = await ref
         .read(progressRepositoryProvider)
         .getMaxUnlockedLevel();
-
-    // Safely updates the notifier without triggering protected member lint warnings
     ref.read(progressNotifierProvider.notifier).initMaxUnlocked(saved);
   }
 
   @override
   Widget build(BuildContext context) {
     final maxUnlocked = ref.watch(progressNotifierProvider);
+    final bg = AppColors.bg(context);
+    final surfMut = AppColors.surfMuted(context);
+    final textPrim = AppColors.textPrim(context);
+    final textSec = AppColors.textSec(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: bg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
           child: Column(
             children: [
               const Spacer(flex: 3),
-              const _Logo(),
+              _Logo(color: textPrim),
               const SizedBox(height: 12),
               Text(
                 'Level $maxUnlocked',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: AppColors.accent,
@@ -63,14 +63,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const LevelSelectScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LevelSelectScreen(),
+                    ),
+                  ),
                   child: const Text(
                     'Play',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -78,7 +76,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               const Spacer(flex: 2),
-              const _BottomNav(),
+              _BottomNav(
+                surfaceMuted: surfMut,
+                textPrimary: textPrim,
+                textSecondary: textSec,
+                onSettingsTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
+              ),
             ],
           ),
         ),
@@ -87,8 +93,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+// ── Logo ─────────────────────────────────────────────────────────────────────
 class _Logo extends StatelessWidget {
-  const _Logo();
+  final Color color;
+  const _Logo({required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -97,14 +105,14 @@ class _Logo extends StatelessWidget {
       children: [
         CustomPaint(
           size: const Size(40, 36),
-          painter: _TrianglePainter(color: AppColors.accentDark),
+          painter: _TrianglePainter(color: color),
         ),
-        const Text(
+        Text(
           'rrows',
           style: TextStyle(
             fontSize: 42,
             fontWeight: FontWeight.w900,
-            color: AppColors.accentDark,
+            color: color,
           ),
         ),
       ],
@@ -127,31 +135,63 @@ class _TrianglePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
+// ── Bottom nav ────────────────────────────────────────────────────────────────
 class _BottomNav extends StatelessWidget {
-  const _BottomNav();
+  final Color surfaceMuted;
+  final Color textPrimary;
+  final Color textSecondary;
+  final VoidCallback onSettingsTap;
+
+  const _BottomNav({
+    required this.surfaceMuted,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.onSettingsTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: surfaceMuted,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _NavItem(icon: Icons.home_rounded, label: 'Home', active: true),
-          _NavItem(icon: Icons.lock, label: 'Scores', active: false),
+          _NavItem(
+            icon: Icons.home_rounded,
+            label: 'Home',
+            active: true,
+            activeColor: textPrimary,
+            inactiveColor: textSecondary,
+          ),
+          _NavItem(
+            icon: Icons.lock,
+            label: 'Scores',
+            active: false,
+            activeColor: textPrimary,
+            inactiveColor: textSecondary,
+          ),
           _NavItem(
             icon: Icons.emoji_events_rounded,
             label: 'Levels',
             active: false,
+            activeColor: textPrimary,
+            inactiveColor: textSecondary,
           ),
-          _NavItem(icon: Icons.settings, label: 'Settings', active: false),
+          _NavItem(
+            icon: Icons.settings,
+            label: 'Settings',
+            active: false,
+            activeColor: textPrimary,
+            inactiveColor: textSecondary,
+            onTap: onSettingsTap,
+          ),
         ],
       ),
     );
@@ -162,23 +202,32 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;
+  final Color activeColor;
+  final Color inactiveColor;
+  final VoidCallback? onTap;
 
   const _NavItem({
     required this.icon,
     required this.label,
     required this.active,
+    required this.activeColor,
+    required this.inactiveColor,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.textPrimary : AppColors.textSecondary;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 22),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 12)),
-      ],
+    final color = active ? activeColor : inactiveColor;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: color, fontSize: 12)),
+        ],
+      ),
     );
   }
 }
